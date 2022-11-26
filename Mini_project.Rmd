@@ -1,0 +1,324 @@
+---
+title: "Mini project"
+author: "Zhangpeng"
+date: '2022-11-23'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Read data and analysis
+```{r,message=FALSE}
+setwd("C:\\Users\\zhang\\Desktop\\XBTG-AFEX\\Mini project")
+library(readxl)
+library(tidyverse)
+library(lme4)
+library(lmerTest)
+
+## Caterpillar
+data <- read_xlsx("Result1.xlsx")
+pupa <- read_xlsx("Result1.xlsx",sheet = "pupa") %>% 
+  unite(Site,Habitat,Vertical_stratification,remove = F,sep = " ")
+library(lme4)
+library(lmerTest)
+
+```
+
+```{r}
+
+## Caterpillar
+
+data$Habitat <- as.factor(data$Habitat)
+data$Vertical_stratification <- as.factor(data$Vertical_stratification)
+data$Block <- as.factor(data$Block)
+
+### All attack
+model <- glmer(cbind(Attack,No_attack)~Habitat+(1|Block), 
+               data %>%filter(Vertical_stratification=="Understory") ,
+               family=binomial(link="logit"))
+library(glmmTMB)
+model2 <- glmmTMB(cbind(Attack,No_attack)~Habitat+(1|Block),
+                  data %>%filter(Vertical_stratification=="Understory"),
+                  family=binomial(link="logit"), zi=~1)
+
+car::Anova(model2,test.statistic=c( "Chisq")) ## Habitat is not significant
+summary(model2)
+
+model <- glmer(cbind(Attack,No_attack)~Vertical_stratification+(1|Block), 
+               data %>%filter(Habitat=="Rainforest") ,
+               family=binomial(link="logit"))
+summary(model)
+car::Anova(model,test.statistic=c( "Chisq"))  ## Vertical_stratification is significant
+model2 <- glmmTMB(cbind(Attack,No_attack)~Vertical_stratification+(1|Block),
+                  data %>%filter(Habitat=="Rainforest"),
+                  family=binomial(link="logit"), zi=~1)
+summary(model2)
+
+### Vertebrate
+
+model <- glmer(cbind(Vertebrate,No_attack)~Habitat+(1|Block), 
+               data %>%filter(Vertical_stratification=="Understory") ,
+               family=binomial(link="logit"))
+summary(model)
+car::Anova(model,test.statistic=c( "Chisq"))## Habitat is not significant
+
+model <- glmer(cbind(Vertebrate,No_attack)~Vertical_stratification+(1|Block), 
+               data %>%filter(Habitat=="Rainforest") ,
+               family=binomial(link="logit"))
+summary(model)
+car::Anova(model,test.statistic=c( "Chisq"))## Vertical_stratification is not significant
+
+### Invertebrates
+
+model <- glmer(cbind(Invertebrates,No_attack)~Habitat+(1|Block), 
+               data %>%filter(Vertical_stratification=="Understory") ,
+               family=binomial(link="logit"))
+summary(model)
+car::Anova(model,test.statistic=c( "Chisq"))## Habitat is not significant
+
+model <- glmer(cbind(Invertebrates,No_attack)~Vertical_stratification+(1|Block), 
+               data %>%filter(Habitat=="Rainforest") ,
+               family=binomial(link="logit"))
+summary(model)
+car::Anova(model,test.statistic=c( "Chisq"))## Vertical_stratification is significant
+
+###############################################################################
+#################Larva,pupa and plasticine models##############################
+###############################################################################
+library(car)
+
+## larva
+library(emmeans)
+
+model0 <- glmer(cbind(Attack.a,3-Attack.a)~Site+(1|Block),
+                family = binomial,pupa %>% 
+                  filter(trt=="Ant exclusion",Bait=="lar"))
+summary(model0)
+pairs(emmeans(model0, "Site"))  
+model0 <- glmer(cbind(Attack.a,3-Attack.a)~Site+(1|Block),
+                family = binomial,pupa %>% 
+                  filter(trt=="Control",Bait=="lar"))
+summary(model0)
+pairs(emmeans(model0, "Site")) 
+
+## pupa
+model0 <- glmer(cbind(Attack.a,3-Attack.a)~Site+(1|Block),
+                family = binomial,pupa %>% 
+                  filter(trt=="Ant exclusion",Bait=="pupa"))
+summary(model0)
+pairs(emmeans(model0, "Site")) 
+model0 <- glmer(cbind(Attack.a,3-Attack.a)~Site+(1|Block),
+                family = binomial,pupa %>% 
+                  filter(trt=="Control",Bait=="pupa"))
+summary(model0)
+pairs(emmeans(model0, "Site")) 
+
+## plast
+model0 <- glmer(cbind(Attack.a,3-Attack.a)~Site+(1|Block),
+                family = binomial,pupa %>% 
+                  filter(trt=="Ant exclusion",Bait=="plast"))
+summary(model0)
+pairs(emmeans(model0, "Site")) 
+model0 <- glmer(cbind(Attack.a,3-Attack.a)~Site+(1|Block),
+                family = binomial,pupa %>% 
+                  filter(trt=="Control",Bait=="plast"))
+summary(model0)
+pairs(emmeans(model0, "Site")) 
+```
+
+
+## Plot
+
+```{r}
+library(eoffice)
+library(sciplot)
+library(ggsci)
+theme1 <- theme_test()+
+  #theme(axis.title = element_text(size = 18))+
+  theme(text = element_text(size = 20,family="serif"))
+
+data %>% mutate(Vertebrate=(Vertebrate)/n.obs,
+                Invertebrates=(Invertebrates)/n.obs,
+                All_predators=Attack/n.obs) %>% 
+  unite(Site,Habitat,Vertical_stratification,remove = F,sep = " ") %>% 
+  select(Site,Habitat,Vertical_stratification,Vertebrate,Invertebrates,All_predators)%>% 
+  gather(key = "Predation_type",value = "Predation",
+         -c(Site,Habitat,Vertical_stratification)) %>% as.data.frame() %>% 
+  ggplot(aes(Site,Predation,color=Site))+
+  geom_boxplot()+
+  geom_point()+
+  #geom_jitter(width=0.1)+
+  facet_wrap(~Predation_type,nrow = 1)+ylim(0,0.5)+
+  #scale_fill_manual(values = c("#00A087FF","#E18727FF" ))+
+  scale_color_manual(values = c("forestgreen","green3","darkgoldenrod" ))+
+  scale_x_discrete(labels=c("RF canopy","RF understory","RB understory"))+
+  labs(x='',y="Predation rate")+
+  #ylim(0,0.5)+
+  theme1+
+  theme(legend.position = "none",
+        strip.background = element_blank())
+
+pupa_ant <- pupa%>% 
+  mutate(Vertebrate=(Vertebrate.a)/n.obs,
+         Invertebrates=(Invertebrates.a)/n.obs,
+         All_predators=Attack.a/n.obs) %>% 
+  select(trt,Habitat,Bait,Vertical_stratification,Vertebrate,Invertebrates,All_predators)%>% 
+  gather(key = "Predation_type",value = "Predation",-c(trt,Habitat,Bait,Vertical_stratification)) %>% 
+  group_by(Bait,Habitat,Vertical_stratification,Predation_type)%>%
+  unite(Site,Habitat,Vertical_stratification,remove = F,sep = " ")
+
+pupa_ant$trt <- factor(pupa_ant$trt,levels = c("Control","Ant exclusion"))
+pupa_ant$Bait <- factor(pupa_ant$Bait,levels = c("lar","pupa","plast"))
+
+larva2 <- pupa_ant %>% filter(Bait=="lar",Predation_type=="All_predators")
+larva2%>% 
+  group_by(Site,trt) %>% 
+  summarise(mean=mean(Predation),se=se(Predation))%>% 
+  ggplot(aes(Site,mean,color=Site,shape=trt))+
+  geom_point(size=3,position = position_dodge(0.9))+
+  geom_errorbar(aes(ymin=mean-se,ymax=mean+se,color=Site),width=0.2,
+                position = position_dodge(0.9))+
+  scale_color_manual(values = c("forestgreen","green3","darkgoldenrod" ))+
+  labs(y='Predation rate',x="")+
+  ylim(0,1)+
+  scale_x_discrete(labels=c("Rainforest \n canopy","Rainforest \n understory",
+                            "Rubber plantation \n understory"))+
+  theme1+
+  theme(legend.position = "none",
+        strip.background = element_blank())
+
+pupa_ant%>% filter(Bait!="lar")%>% group_by(Bait,trt,Site,Predation_type)%>%
+  summarise(mean1=mean(Predation),se1=se(Predation)) %>% 
+  ggplot(aes(Site,mean1,color=Site,shape=trt))+
+  geom_point(size=3,position = position_dodge(0.9))+
+  geom_errorbar(aes(ymin=mean1-se1,ymax=mean1+se1,color=Site),
+                    position = position_dodge(0.9),width=0.1)+
+  facet_grid(Bait~Predation_type)+#ylim(0,0.5)+
+  scale_color_manual(values = c("forestgreen","green3","darkgoldenrod"))+
+  labs(y='',x="")+
+  ylim(0,1)+
+  scale_x_discrete(labels=c("RF canopy","RF understory","RB understory"))+
+  theme1+
+  theme(legend.position = "none",
+        strip.background = element_blank())
+
+## Dummy caterpillar~ live larva
+pupa %>% filter(trt=="Control")%>% 
+  select(Site,Vertical_stratification,Block,Attack.a,Bait) %>% 
+  spread(key = "Bait",value = "Attack.a") %>% 
+  left_join(data[c(1:21,26,29),]) %>% 
+  mutate(Predation=Attack/n.obs) %>% filter(Block!="U8") %>% 
+  filter(Block!="U3") %>% filter(Block!="U10") %>%as.data.frame() %>%na.omit() %>% 
+  mutate(larva=lar/3) %>%  group_by(Site) %>% 
+  summarise(mean1=mean(Predation),se1=mean(Predation),
+            mean2=mean(larva),se2=se(larva)) %>% 
+  ggplot(aes(mean2,mean1,color=Site))+
+  geom_point(size=4)+
+  geom_errorbarh(aes(xmin=mean2-se2,xmax=mean2+se2,height=0.01),size=1)+
+  geom_errorbar(aes(ymin=mean1-se1,ymax=mean1+se1),width=0.01,size=1)+
+  scale_color_manual(values = c("forestgreen","green3","darkgoldenrod"))+
+  # geom_smooth(method = "lm",se=F)+
+  labs(x="Live larva",y="Dummy caterpillar")+
+  ylim(0,1)+xlim(0,1)+geom_abline(intercept=0,slope=1 ,linetype=2)+
+  theme1+
+  theme(legend.position = c(0.3,0.8))
+## Plasticine pupa~live pupa
+pupa %>%
+  unite(Site,Habitat,Vertical_stratification,remove = F,sep = " ")%>%
+  filter(trt=="Control")%>% 
+  select(Site,trt,Habitat,Vertical_stratification,Block,Attack.a,Bait) %>% 
+  spread(key = "Bait",value = "Attack.a")  %>% 
+  mutate(pupa=pupa/3,plast=plast/3) %>% group_by(Site) %>% 
+  summarise(mean2=mean(pupa),se2=mean(pupa),
+            mean1=mean(plast),se1=se(plast)) %>% 
+  ggplot(aes(mean2,mean1,color=Site))+
+  geom_point(size=4)+
+  geom_errorbarh(aes(xmin=mean2-se2,xmax=mean2+se2,height=0.01),size=1)+
+  geom_errorbar(aes(ymin=mean1-se1,ymax=mean1+se1),width=0.01,size=1)+
+  scale_color_manual(values = c("forestgreen","green3","darkgoldenrod"))+
+  ylim(0,1)+geom_abline(intercept=0,slope=1,linetype=2)+
+  labs(x="Live pupa",y="Plasticine pupa")+
+  theme1+
+  theme(legend.position = c(0.3,0.8))
+## Dummy caterpillar~ live pupa
+pupa %>% filter(trt=="Control")%>% 
+  select(Site,Vertical_stratification,Block,Attack.a,Bait) %>% 
+  spread(key = "Bait",value = "Attack.a") %>% 
+  left_join(data[c(1:21,26,29),]) %>% 
+  mutate(Predation=Attack/n.obs) %>% filter(Block!="U8") %>% 
+  filter(Block!="U3") %>% filter(Block!="U10") %>%as.data.frame() %>%na.omit() %>% 
+  mutate(pupa=pupa/3) %>%  group_by(Site) %>% 
+  summarise(mean1=mean(Predation),se1=mean(Predation),
+            mean2=mean(pupa),se2=se(pupa)) %>% 
+  ggplot(aes(mean2,mean1,color=Site))+
+  geom_point(size=4)+
+  geom_errorbarh(aes(xmin=mean2-se2,xmax=mean2+se2,height=0.01),size=1)+
+  geom_errorbar(aes(ymin=mean1-se1,ymax=mean1+se1),width=0.01,size=1)+
+  scale_color_manual(values = c("forestgreen","green3","darkgoldenrod"))+
+  # geom_smooth(method = "lm",se=F)+
+  labs(x="Live pupa",y="Dummy caterpillar")+
+  ylim(0,1)+xlim(0,1)+geom_abline(intercept=0,slope=1 ,linetype=2)+
+  theme1+
+  theme(legend.position = c(0.3,0.8))
+
+## insect
+insect<-read.csv("insectdata-3.csv")
+insect$site <- factor(insect$site,levels = c("canopy","understory","rubber"))
+insect$plot <- as.factor(insect$plot)
+summary(insect)
+
+anova1 <- aov(predator~site,data=insect) # no dif among 3 sites
+summary(anova1)
+pairs(emmeans(model0, "Site")) 
+anova1 <- aov(ants~site,data=insect) # no dif among 3 sites
+summary(anova1)
+anova1 <- aov(spiders~site,data=insect) # no dif among 3 sites
+summary(anova1)
+anova1 <- aov(herbeivore~site,data=insect) # no dif among 3 sites
+summary(anova1)
+anova1 <- aov(inverterate~site,data=insect) # no dif among 3 sites
+summary(anova1)
+
+## plot
+insect %>% 
+  ggplot(aes(site,spiders,color=site))+
+  geom_boxplot()+
+  geom_point()+
+  scale_color_manual(values = c("forestgreen","green3","darkgoldenrod" ))+
+  scale_x_discrete(labels=c("RFC","RFU","RBU"))+
+  labs(x='',y="Invertebrate abundance")+
+  #ylim(0,0.5)+
+  theme1+
+  theme(legend.position = "none",
+        strip.background = element_blank())
+
+insect %>% 
+  ggplot(aes(site,predator,color=site))+
+  geom_boxplot()+
+  geom_point()+
+  scale_color_manual(values = c("forestgreen","green3","darkgoldenrod" ))+
+  #scale_x_discrete(labels=c("RFC","RFU","RBU"))+
+  labs(x='',y="Predators")+
+  #ylim(0,0.5)+
+  theme1+
+  theme(legend.position = "none",
+        strip.background = element_blank())
+
+insect %>% 
+  ggplot(aes(site,ants,color=site))+
+  geom_boxplot()+
+  geom_point()+
+  scale_color_manual(values = c("forestgreen","green3","darkgoldenrod" ))+
+  #scale_x_discrete(labels=c("RFC","RFU","RBU"))+
+  labs(x='',y="Predators")+
+  #ylim(0,0.5)+
+  theme1+
+  theme(legend.position = "none",
+        strip.background = element_blank())
+```
+
+
+
+
